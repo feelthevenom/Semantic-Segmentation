@@ -50,3 +50,18 @@ def get_preprocessing(preprocessing_fn=None):
         return album.Compose(_transform)
     except Exception as e:
         raise SegmentationException(e, sys)
+    
+# Center crop padded image / mask to original image dims.
+def crop_image(image, target_image_dims=[256,256,3]):
+    try:
+        target_size = target_image_dims[0]
+        image_size = len(image)
+        padding = (image_size - target_size) // 2
+
+        return image[
+            padding:image_size - padding,
+            padding:image_size - padding,
+            :,
+        ]
+    except Exception as e:
+        raise SegmentationException(e, sys)

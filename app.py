@@ -1,12 +1,11 @@
-import streamlit as st
-import os, sys
-import json
+from segmentation.components.model_training import ModelTraining
+from segmentation.components.model_prediction import ModelPrediction
 
-from segmentation.logging.logger import logging
-from segmentation.exception.exception import SegmentationException
+# Example usage
+if __name__ == "__main__":
 
-from segmentation.utils.ui.utils import dataset_chooser
-    
-if __name__=='__main__':
+    # trainer = ModelTraining()
+    # trainer.train_all_datasets()
 
-    choosen_dataset = dataset_chooser()
+    predict_pipe = ModelPrediction()
+    predict_pipe.predict()

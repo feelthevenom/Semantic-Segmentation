@@ -6,7 +6,7 @@ dirr = os.path.join("logs")
 
 os.makedirs(dirr, exist_ok=True)
 
-log_path = os.path.join(dirr, f"{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.log")
+log_path = os.path.join(dirr, f"{datetime.now().strftime('%Y-%m-%d-%H-%M')}.log")
 
 
 logging.basicConfig(

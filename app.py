@@ -1,7 +1,12 @@
-from segmentaion.logging.logger import logging
+import streamlit as st
+import os, sys
+import json
 
-logger = logging.getLogger('Main')
+from segmentation.logging.logger import logging
+from segmentation.exception.exception import SegmentationException
 
-
+from segmentation.utils.ui.utils import dataset_chooser
+    
 if __name__=='__main__':
-    logger.info("Main page Testing")
+
+    choosen_dataset = dataset_chooser()

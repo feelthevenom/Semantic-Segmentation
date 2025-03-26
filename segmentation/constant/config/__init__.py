@@ -1,4 +1,7 @@
 
+import segmentation_models_pytorch as smp
+import segmentation_models_pytorch.utils
+
 """
 Define contant variable values 
 """
@@ -29,10 +32,21 @@ PREPROCESS_OUT_DIRR = "Preprocessed_Data"
 ARTIFACT_DIRR_NAME = "Artifact"
 TRAINED_MODEL_DIRR = "Trained Models"
 BEST_MODEL_NAME = "model.pth"
-
+TRAIN_METRIC_DIRR = "Trained_Metric_Score.json"
+TEST_METRIC_DIRR = "Test_Metric_Score.json"
 PRED_IMGS_DIRR = "Predicted"
 
 #PARAMS
 BATCH_NUM = 8
 EPOCHS = 1
 LR_RATE = 0.001
+
+MODEL_LOSS = segmentation_models_pytorch.utils.losses.DiceLoss()
+
+MODEL_METRICS = [
+    smp.utils.metrics.IoU(threshold=0.5), 
+    smp.utils.metrics.Accuracy(threshold=0.5),
+    smp.utils.metrics.Precision(threshold=0.5),
+    smp.utils.metrics.Recall(threshold=0.5),
+    smp.utils.metrics.Fscore(threshold=0.5)
+]

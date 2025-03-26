@@ -12,12 +12,9 @@ from segmentation.entity.config_entity import DatasetConfig
 from segmentation.utils.dataset.utils import data_loader, training_setup
 from segmentation.utils.main_utils.utils import save_metrics, plot_metrics
 
-from segmentation.constant.config import EPOCHS, LR_RATE
-from segmentation.constant.config import ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, BEST_MODEL_NAME
+from segmentation.constant.config import EPOCHS, LR_RATE, MODEL_LOSS, MODEL_METRICS
+from segmentation.constant.config import ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, BEST_MODEL_NAME, TRAIN_METRIC_DIRR
 
-import segmentation_models_pytorch.utils
-
-import segmentation_models_pytorch as smp
 
 
 logger = logging.getLogger('Model_Training')
@@ -41,16 +38,10 @@ class ModelTraining:
             DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
             # Define loss function
-            loss = segmentation_models_pytorch.utils.losses.DiceLoss()
+            loss = MODEL_LOSS
 
             # Define metrics
-            metrics = [
-                smp.utils.metrics.IoU(threshold=0.5), 
-                smp.utils.metrics.Accuracy(threshold=0.5),
-                smp.utils.metrics.Precision(threshold=0.5),
-                smp.utils.metrics.Recall(threshold=0.5),
-                smp.utils.metrics.Fscore(threshold=0.5)
-            ]
+            metrics = MODEL_METRICS 
 
             logger.info("Entering Model Training Setup")
             # Setup training
@@ -62,7 +53,7 @@ class ModelTraining:
             # Define paths
             path = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, model_name)
             model_path = os.path.join(path, BEST_MODEL_NAME)
-            metrics_file_path = os.path.join(path, "metrics_score.json")
+            metrics_file_path = os.path.join(path, TRAIN_METRIC_DIRR)
             os.makedirs(path, exist_ok=True)
             save_dir = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, model_name, "plots")
             # Training loop

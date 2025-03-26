@@ -3,6 +3,8 @@ import torch
 import numpy as np
 import cv2
 
+import segmentation_models_pytorch as smp
+
 from segmentation.models.msunet.model import MSU_Net
 from segmentation.models.bmsunet.model import BMSU_Net
 
@@ -14,11 +16,12 @@ from segmentation.entity.config_entity import DatasetConfig
 
 from segmentation.utils.augmentation.utils import get_preprocessing, get_validation_augmentation
 
-from segmentation.constant.config import CLASS_RGB_VALUES
 from segmentation.utils.augmentation.utils import crop_image
 from segmentation.utils.helper.utils import colour_code_segmentation, reverse_one_hot
+from segmentation.utils.main_utils.utils import save_metrics
 
-from segmentation.constant.config import ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, BEST_MODEL_NAME, PRED_IMGS_DIRR
+from segmentation.constant.config import ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, BEST_MODEL_NAME, PRED_IMGS_DIRR, TEST_METRIC_DIRR
+from segmentation.constant.config import CLASS_RGB_VALUES, MODEL_LOSS, MODEL_METRICS
 
 from torch.utils.data import DataLoader
 
@@ -34,8 +37,17 @@ class ModelPrediction:
             "BMSU_Net": BMSU_Net()
         }
 
+    def save_test_metrics(self, model):
+        test_epoch = smp.utils.train.ValidEpoch(
+        model,
+        loss=MODEL_LOSS,
+        metrics=MODEL_METRICS,
+        device=DEVICE,
+        verbose=True,
+    )
+        return test_epoch
     
-    def load_training(self, x_test_dir, y_test_dir):
+    def load_test(self, x_test_dir, y_test_dir):
         try:
             test_dataset = BuildingsDataset(
                 x_test_dir,
@@ -62,7 +74,7 @@ class ModelPrediction:
             for dataset_idx, (x_test_dir, y_test_dir) in enumerate(
                 zip(self.config.org_test_dirr, self.config.gt_test_dirr)
             ):
-                test_dataset, test_dataloader, test_dataset_vis = self.load_training(x_test_dir, y_test_dir)
+                test_dataset, test_dataloader, test_dataset_vis = self.load_test(x_test_dir, y_test_dir)
                 for model_name, model in self.models.items():
                     logger.info(f"Prediction for {model_name}")
                     print(f"Prediction for {model_name}")
@@ -83,6 +95,18 @@ class ModelPrediction:
                     # Load checkpoint with weights_only set to False
                     best_model = torch.load(model_path, map_location=DEVICE, weights_only=False)
                     
+                    # Save the metrics in JSON for study
+                    path = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, model_name)
+                    metrics_file_path = os.path.join(path, TEST_METRIC_DIRR)
+
+                    test_epoch = self.save_test_metrics(model=best_model)
+                    test_logs = test_epoch.run(test_dataloader)
+                    metrics_data = {
+                        "train_metrics": test_logs
+                    }
+
+                    save_metrics(metrics_data, metrics_file_path)
+
                     with torch.no_grad():
                         for idx in range(len(test_dataset)):
                             image, gt_mask = test_dataset[idx]
@@ -104,7 +128,7 @@ class ModelPrediction:
                             gt_mask = crop_image(colour_code_segmentation(reverse_one_hot(gt_mask), CLASS_RGB_VALUES))
 
                             cv2.imwrite(os.path.join(sample_preds_folder, f"pred_{idx}.png"), pred_mask)
-            
+
         except Exception as e:
             raise SegmentationException(e, sys)
 

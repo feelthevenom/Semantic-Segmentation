@@ -1,3 +1,5 @@
+import streamlit as st
+
 from segmentation.components.model_training import ModelTraining
 from segmentation.components.model_prediction import ModelPrediction
 
@@ -9,3 +11,4 @@ if __name__ == "__main__":
 
     predict_pipe = ModelPrediction()
     predict_pipe.predict()
+    # st.title("Semantic Segmentation")

@@ -8,7 +8,7 @@ import segmentation_models_pytorch as smp
 from segmentation.models.msunet.model import MSU_Net
 from segmentation.models.bmsunet.model import BMSU_Net
 
-from segmentation.logging.logger import logging
+from segmentation.logging.logger import get_logger
 from segmentation.exception.exception import SegmentationException
 
 from segmentation.utils.dataset.utils import BuildingsDataset
@@ -25,7 +25,7 @@ from segmentation.constant.config import CLASS_RGB_VALUES, MODEL_LOSS, MODEL_MET
 
 from torch.utils.data import DataLoader
 
-logger = logging.getLogger('Prediction_Pipeline')
+logger = get_logger('Prediction_Pipeline')
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -102,7 +102,7 @@ class ModelPrediction:
                     test_epoch = self.save_test_metrics(model=best_model)
                     test_logs = test_epoch.run(test_dataloader)
                     metrics_data = {
-                        "train_metrics": test_logs
+                        "test_metrics": test_logs
                     }
 
                     save_metrics(metrics_data, metrics_file_path)

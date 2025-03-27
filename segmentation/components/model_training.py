@@ -5,7 +5,7 @@ import torch
 from segmentation.models.msunet.model import MSU_Net
 from segmentation.models.bmsunet.model import BMSU_Net
 
-from segmentation.logging.logger import logging
+from segmentation.logging.logger import get_logger
 from segmentation.exception.exception import SegmentationException
 
 from segmentation.entity.config_entity import DatasetConfig
@@ -17,7 +17,7 @@ from segmentation.constant.config import ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR,
 
 
 
-logger = logging.getLogger('Model_Training')
+logger = get_logger('Model_Training')
 
 class DataTransformingConfig:
     def __init__(self):
@@ -136,7 +136,7 @@ class ModelTraining:
                     except Exception as e:
                         logger.error(f"Error training {model_name} on dataset {dataset_idx + 1}: {str(e)}")
                         raise SegmentationException(e, sys)
-                    
+            return True
         except Exception as e:
             raise SegmentationException(e, sys)
         

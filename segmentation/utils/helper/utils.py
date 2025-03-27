@@ -1,10 +1,10 @@
 import sys
 from segmentation.exception.exception import SegmentationException
-from segmentation.logging.logger import logging
+from segmentation.logging.logger import get_logger
 import numpy as np
 import matplotlib.pyplot as plt
 
-logger = logging.getLogger('Helper_Function')
+logger = get_logger('Helper_Function')
 
   # Helper function for data visualization
 def visualize(**images):

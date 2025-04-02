@@ -1,3 +1,4 @@
+#segmentaion/constant/config/__init__.py
 
 import segmentation_models_pytorch as smp
 import segmentation_models_pytorch.utils
@@ -39,7 +40,7 @@ PRED_IMGS_DIRR = "Predicted"
 #PARAMS
 BATCH_NUM = 8
 EPOCHS = 1
-LR_RATE = 0.001
+LR_RATE = 0.01
 
 MODEL_LOSS = segmentation_models_pytorch.utils.losses.DiceLoss()
 

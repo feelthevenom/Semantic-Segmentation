@@ -1,9 +1,8 @@
 import os, sys
-from segmentation.logging.logger import logging
 from segmentation.exception.exception import SegmentationException
 
 from segmentation.constant.config import DATA_DIR, ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, TRAIN_METRIC_DIRR
-from segmentation.utils.dataset.utils import DATA_DIRRS_LIST
+from segmentation.utils.dataset_utils.utils import DATA_DIRRS_LIST
 from segmentation.constant.config import DATA_ORG_TRAIN_DIR, DATA_ORG_TEST_DIR, DATA_ORG_VALID_DIR
 from segmentation.constant.config import DATA_GT_TRAIN_DIR, DATA_GT_TEST_DIR, DATA_GT_VALID_DIR
 

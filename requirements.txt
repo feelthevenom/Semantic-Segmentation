@@ -8,4 +8,10 @@ torch
 torchmetrics
 matplotlib
 streamlit
+agno
+ollama
+duckdb
+python-docx
+mamba-ssm
+
 # -e .

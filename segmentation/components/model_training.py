@@ -1,6 +1,6 @@
 import os,sys
 import torch 
-
+import time
 
 from segmentation.models.msunet.model import MSU_Net
 from segmentation.models.bmsunet.model import BMSU_Net
@@ -9,7 +9,7 @@ from segmentation.logging.logger import get_logger
 from segmentation.exception.exception import SegmentationException
 
 from segmentation.entity.config_entity import DatasetConfig
-from segmentation.utils.dataset.utils import data_loader, training_setup
+from segmentation.utils.dataset_utils.utils import data_loader, training_setup
 from segmentation.utils.main_utils.utils import save_metrics, plot_metrics
 
 from segmentation.constant.config import EPOCHS, LR_RATE, MODEL_LOSS, MODEL_METRICS
@@ -31,7 +31,7 @@ class ModelTraining:
         }
         self.config = DataTransformingConfig()
 
-    def train_function(self, model, train_loader, valid_loader, model_name):
+    def train_function(self, model, train_loader, valid_loader, model_name, dataset_name, lr_rate, epochs):
         try:
             logger.info("Entering Training Processes")
             # Set device: `cuda` or `cpu`
@@ -44,31 +44,39 @@ class ModelTraining:
             metrics = MODEL_METRICS 
 
             logger.info("Entering Model Training Setup")
-            # Setup training
+            # Setup training with the selected learning rate
             train_epoch, valid_epoch = training_setup(
-                model=model, lrate=LR_RATE, loss=loss, metrics=metrics, DEVICE=DEVICE
-            )
+                 model=model, lrate=lr_rate, loss=loss, metrics=metrics, DEVICE=DEVICE
+             )
             logger.info("Model training setup is successful!")
 
             # Define paths
-            path = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, model_name)
+            path = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, dataset_name, model_name)
             model_path = os.path.join(path, BEST_MODEL_NAME)
             metrics_file_path = os.path.join(path, TRAIN_METRIC_DIRR)
             os.makedirs(path, exist_ok=True)
-            save_dir = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, model_name, "plots")
+            save_dir = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, dataset_name, model_name, "plots")
+
             # Training loop
             TRAINING = True
             if TRAINING:
                 modelNum = 0  # Stores the best model's epoch number.
                 best_iou_score = 0.0
-                logger.info("Model Training is Started")
+                logger.info("Model Training is Started for model")
 
-                for i in range(EPOCHS):
+                for i in range(epochs):
                     print(f'\nEpoch: {i + 1}')
+                    epoch_start_time = time.time()  # Start time
 
                     # Perform training & validation
                     train_logs = train_epoch.run(train_loader)
                     valid_logs = valid_epoch.run(valid_loader)
+
+                    epoch_end_time = time.time()  # End time
+                    total_time = int(epoch_end_time - epoch_start_time)  # Time in seconds
+
+                    # Add total_time to train_logs
+                    train_logs["total_time"] = total_time
 
                     # Store metrics for each epoch
                     metrics_data = {
@@ -96,7 +104,7 @@ class ModelTraining:
             raise SegmentationException(e, sys)
 
 
-    def train_all_datasets(self):
+    def train_all_datasets(self, lr_rate, epochs, batch_num):
         """
         Train all datasets sequentially for each model.
 
@@ -117,7 +125,7 @@ class ModelTraining:
                 try:
                     train_loader, valid_loader = data_loader(
                         x_train_dir=x_train, y_train_dir=y_train,
-                        x_valid_dir=x_valid, y_valid_dir=y_valid
+                        x_valid_dir=x_valid, y_valid_dir=y_valid, b_size=batch_num
                     )
                 except Exception as e:
                     logger.error(f"Failed to load dataset {dataset_idx + 1}: {str(e)}")
@@ -126,10 +134,13 @@ class ModelTraining:
                 # Train each model sequentially on the current dataset
                 for model_name, model in self.models.items():
                     try:
-                        logger.info(f"Training {model_name} on Dataset {dataset_idx + 1}")
+                        logger.info(f"Training {model_name} on Dataset {dataset_idx + 1} with Epochs - {epochs}, Lr_rate - {lr_rate} with batch size of {batch_num}")
+                        
+                        dataset_name = os.path.basename(os.path.dirname(x_train))
 
                         # Train model
-                        self.train_function(model, train_loader, valid_loader, model_name=model_name)
+                        self.train_function(model, train_loader, valid_loader, model_name=model_name, dataset_name=dataset_name,
+                                            lr_rate=lr_rate, epochs=epochs)
 
                         logger.info(f"Finished training {model_name} on Dataset {dataset_idx + 1}")
 

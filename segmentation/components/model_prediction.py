@@ -11,7 +11,7 @@ from segmentation.models.bmsunet.model import BMSU_Net
 from segmentation.logging.logger import get_logger
 from segmentation.exception.exception import SegmentationException
 
-from segmentation.utils.dataset.utils import BuildingsDataset
+from segmentation.utils.dataset_utils.utils import BuildingsDataset
 from segmentation.entity.config_entity import DatasetConfig
 
 from segmentation.utils.augmentation.utils import get_preprocessing, get_validation_augmentation
@@ -74,13 +74,24 @@ class ModelPrediction:
             for dataset_idx, (x_test_dir, y_test_dir) in enumerate(
                 zip(self.config.org_test_dirr, self.config.gt_test_dirr)
             ):
+                
+                dataset_name = os.path.basename(os.path.dirname(x_test_dir))
+
                 test_dataset, test_dataloader, test_dataset_vis = self.load_test(x_test_dir, y_test_dir)
                 for model_name, model in self.models.items():
                     logger.info(f"Prediction for {model_name}")
                     print(f"Prediction for {model_name}")
-                    sample_preds_folder = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, model_name, PRED_IMGS_DIRR)
+
+                    sample_preds_folder = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, dataset_name, model_name, PRED_IMGS_DIRR)
                     os.makedirs(sample_preds_folder, exist_ok=True)
-                    model_path = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, model_name, BEST_MODEL_NAME)
+
+                    model_path = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, dataset_name, model_name, BEST_MODEL_NAME)
+                    
+                    # Save the metrics in JSON for study
+                    path = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, dataset_name, model_name)
+                    metrics_file_path = os.path.join(path, TEST_METRIC_DIRR)
+                    os.makedirs(path, exist_ok=True)
+
                     
                     # Contains the list Model Classes
                     model_classes = list({type(model) for model in self.models.values()})
@@ -94,10 +105,6 @@ class ModelPrediction:
 
                     # Load checkpoint with weights_only set to False
                     best_model = torch.load(model_path, map_location=DEVICE, weights_only=False)
-                    
-                    # Save the metrics in JSON for study
-                    path = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, model_name)
-                    metrics_file_path = os.path.join(path, TEST_METRIC_DIRR)
 
                     test_epoch = self.save_test_metrics(model=best_model)
                     test_logs = test_epoch.run(test_dataloader)

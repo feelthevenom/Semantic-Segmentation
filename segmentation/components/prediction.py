@@ -17,7 +17,7 @@ logger = get_logger('Prediction')
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Prediction:
-    def __init__(self, model_name="MSU_Net"):
+    def __init__(self, dataset_name, model_name):
         try:
             if model_name == "MSU_Net":
                 self.model = MSU_Net()
@@ -26,9 +26,11 @@ class Prediction:
             else:
                 raise ValueError("Unsupported model")
 
-            model_path = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, model_name, BEST_MODEL_NAME)
+            model_path = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, dataset_name, model_name, BEST_MODEL_NAME)
 
-            # Allow custom classes for loading
+            if not os.path.exists(model_path):
+                raise FileNotFoundError(f"Model not found at: {model_path}")
+
             from torch.nn.modules.pooling import MaxPool2d
             torch.serialization.add_safe_globals([type(self.model), MaxPool2d])
 
@@ -44,7 +46,6 @@ class Prediction:
             image = cv2.cvtColor(cv2.imread(image_path), cv2.COLOR_BGR2RGB)
             original_image = image.copy()
 
-            # Preprocessing
             preprocessing_fn = get_preprocessing(preprocessing_fn=None)
             sample = preprocessing_fn(image=image)
             image = sample['image']

@@ -12,7 +12,11 @@
             
             python3 -m venv myenv
 
-2. Install all requirements using
+2. Install cuda version pytorch
+
+             pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+
+3. Install all requirements using
 
             pip install -r requirements.txt
 
@@ -20,6 +24,6 @@
 
             python install .
 
-3. Run the GUI using Streamlit
+4. Run the GUI using Streamlit
 
             streamlit run app.py

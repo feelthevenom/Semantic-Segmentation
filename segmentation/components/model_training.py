@@ -1,6 +1,7 @@
-import os,sys
+import os, sys
 import torch 
 import time
+import json
 
 from segmentation.models.msunet.model import MSU_Net
 from segmentation.models.bmsunet.model import BMSU_Net
@@ -14,8 +15,6 @@ from segmentation.utils.main_utils.utils import save_metrics, plot_metrics
 
 from segmentation.constant.config import EPOCHS, LR_RATE, MODEL_LOSS, MODEL_METRICS
 from segmentation.constant.config import ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, BEST_MODEL_NAME, TRAIN_METRIC_DIRR
-
-
 
 logger = get_logger('Model_Training')
 
@@ -56,7 +55,30 @@ class ModelTraining:
             metrics_file_path = os.path.join(path, TRAIN_METRIC_DIRR)
             os.makedirs(path, exist_ok=True)
             save_dir = os.path.join(ARTIFACT_DIRR_NAME, TRAINED_MODEL_DIRR, dataset_name, model_name, "plots")
+            
+            # Check if metrics file exists and if training has been previously performed
+            start_epoch = 0  # default starting epoch
+            if os.path.exists(metrics_file_path):
+                try:
+                    with open(metrics_file_path, 'r') as f:
+                        metrics_data = json.load(f)
+                    # Determine the last epoch recorded from the file
+                    if isinstance(metrics_data, list) and len(metrics_data) > 0:
+                        last_epoch = metrics_data[-1].get('epoch', 0)
+                    elif isinstance(metrics_data, dict):
+                        last_epoch = metrics_data.get('epoch', 0)
+                    else:
+                        last_epoch = 0
 
+                    if last_epoch >= epochs:
+                        logger.info("Training already complete with epoch value matching or exceeding the assigned epochs. Skipping training.")
+                        return
+                    else:
+                        start_epoch = last_epoch
+                        logger.info(f"Resuming training from epoch {start_epoch + 1} to {epochs}.")
+                except Exception as e:
+                    logger.error("Error reading metrics file: " + str(e))
+            
             # Training loop
             TRAINING = True
             if TRAINING:
@@ -64,7 +86,7 @@ class ModelTraining:
                 best_iou_score = 0.0
                 logger.info("Model Training is Started for model")
 
-                for i in range(epochs):
+                for i in range(start_epoch, epochs):
                     print(f'\nEpoch: {i + 1}')
                     epoch_start_time = time.time()  # Start time
 
@@ -79,20 +101,19 @@ class ModelTraining:
                     train_logs["total_time"] = total_time
 
                     # Store metrics for each epoch
-                    metrics_data = {
+                    epoch_metrics = {
                         "epoch": i + 1,
                         "train_metrics": train_logs,
                         "valid_metrics": valid_logs
                     }
 
                     # Save metrics for every epoch
-                    save_metrics(metrics_data, metrics_file_path)
+                    save_metrics(epoch_metrics, metrics_file_path)
 
                     # Save model if a better val IoU score is obtained
                     if best_iou_score < valid_logs['iou_score']:
                         modelNum = i
                         best_iou_score = valid_logs['iou_score']
-
                         torch.save(model, model_path)  # Save the entire model
                         print('Model saved!')
 
@@ -112,7 +133,6 @@ class ModelTraining:
         - train_function: Function that takes (model, train_loader, valid_loader) as arguments.
         """
         try:
-
             dataset_config = self.config.dataset_config
 
             for dataset_idx, (x_train, y_train, x_valid, y_valid) in enumerate(
@@ -150,4 +170,3 @@ class ModelTraining:
             return True
         except Exception as e:
             raise SegmentationException(e, sys)
-        

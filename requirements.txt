@@ -10,6 +10,7 @@ agno
 ollama
 duckdb
 python-docx
+Pillow
 # -e .
 
 # mamba-ssm

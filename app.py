@@ -3,9 +3,12 @@ import numpy as np
 import os
 import pandas as pd
 import json
+from docx import Document
 
 from segmentation.components.model_training import ModelTraining
 from segmentation.components.model_prediction import ModelPrediction
+from segmentation.components.save_metrics_indocs import create_doc_table_tab
+from segmentation.components.building_count import building_detection_tab
 from segmentation.entity.config_entity import ArtifactConfig, DatasetConfig
 from segmentation.constant.config import TRAIN_METRIC_DIRR, TEST_METRIC_DIRR, BATCH_NUM, EPOCHS, LR_RATE
 
@@ -24,7 +27,9 @@ if "model_params" not in st.session_state:
 if __name__ == "__main__":
 
     st.title("Semantic Segmentation Dashboard")
-    tab1, tab2, tab3 = st.tabs(["Training", "Testing", "Prediction"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "Training", "Testing", "Prediction", "create doc table", "Building Detection"
+    ])
 
     # ====================== TRAINING ==============================
     with tab1:
@@ -230,3 +235,9 @@ if __name__ == "__main__":
                     with col2:
                         st.subheader("Predicted Mask")
                         st.image(mask, use_container_width=True)
+
+        with tab4:
+            create_doc_table_tab()
+
+        with tab5:
+            building_detection_tab()

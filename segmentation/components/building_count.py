@@ -3,103 +3,157 @@ import cv2
 import numpy as np
 import pandas as pd
 from PIL import Image
-import io
 
-# 5th Tab: Building Detection from Predicted and Ground Truth Images
-def process_building_image(pil_image, meter_per_pixel):
+
+def detect_buildings(mask_pil: Image.Image, meter_per_pixel: float):
     """
-    Processes an input PIL image to detect building contours.
+    Detects building contours in a binary mask image.
     Returns:
-        count: number of buildings detected,
-        building_info: list of dictionaries with building number and area in sq ft,
-        overlay_img_rgb: the image with drawn bounding boxes (in RGB for st.image).
+        building_info: list of dicts with Building Number and Area (sq ft)
+        bboxes: list of tuples (x, y, w, h) for each building
+        mask_thresh: binary mask as numpy array
     """
-    # Convert image to grayscale
-    cv_img = np.array(pil_image.convert('L'))
-    # Threshold to obtain binary image (adjust threshold value as needed)
-    ret, thresh = cv2.threshold(cv_img, 127, 255, cv2.THRESH_BINARY)
-    # Find external contours (assumes each contour corresponds to a building)
-    contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
+    # Convert mask to grayscale array
+    mask_gray = np.array(mask_pil.convert('L'))
+    # Threshold to binary
+    _, mask_thresh = cv2.threshold(mask_gray, 127, 255, cv2.THRESH_BINARY)
+    # Find external contours
+    contours, _ = cv2.findContours(mask_thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
     building_info = []
-    # Convert original image to BGR for drawing colored bounding boxes
-    overlay_img = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
-    
-    for idx, cnt in enumerate(contours):
-        # Filter out very small contours as noise (you may adjust the threshold)
+    bboxes = []
+
+    for cnt in contours:
         area_pixels = cv2.contourArea(cnt)
+        # Filter out small contours as noise
         if area_pixels < 50:
             continue
-        # Compute bounding box for the contour
         x, y, w, h = cv2.boundingRect(cnt)
-        cv2.rectangle(overlay_img, (x, y), (x+w, y+h), (0, 255, 0), 2)
-        # Convert pixel area to square meters, then to square feet.
+        building_number = len(building_info) + 1
+        # Calculate area in square meters and convert to square feet
         area_sq_m = area_pixels * (meter_per_pixel ** 2)
         area_sq_ft = area_sq_m * 10.7639
         building_info.append({
-            "Building Number": len(building_info) + 1,
+            "Building Number": building_number,
             "Area (sq ft)": f"{area_sq_ft:.4f}"
         })
-    
-    count = len(building_info)
-    # Convert overlay image from BGR to RGB for display in Streamlit
-    overlay_img_rgb = cv2.cvtColor(overlay_img, cv2.COLOR_BGR2RGB)
-    
-    return count, building_info, overlay_img_rgb
+        bboxes.append((x, y, w, h))
+
+    return building_info, bboxes, mask_thresh
+
 
 def building_detection_tab():
-    st.header("Building Detection from Prediction & Ground Truth Images")
-    
+    """
+    Streamlit tab for building detection:
+    - Upload predicted mask and original image
+    - Overlay mask on original and draw bounding boxes
+    - Show table of building areas
+    - Allow user to select a building to view its clipped region
+    """
+    st.header("Building Detection and Visualization")
+
+    # Conversion factor input
     st.markdown("### Conversion Factor")
-    st.write("Please provide the conversion factor (meters per pixel) for your image. This value is used to convert the pixel area of a building into square feet.")
-    meter_per_pixel = st.number_input("Meters per pixel", min_value=0.0001, value=0.3, step=0.01)
-    
+    st.write(
+        "Provide the conversion factor (meters per pixel) to convert pixel area to square feet."
+    )
+    meter_per_pixel = st.number_input(
+        "Meters per pixel",
+        min_value=0.0001,
+        value=0.3,
+        step=0.01
+    )
+
     st.markdown("---")
     st.markdown("### Upload Images")
-    st.write("Upload the predicted image and the ground truth image (for aerial building extraction).")
-    
-    pred_file = st.file_uploader("Upload Predicted Image", type=["png", "jpg", "jpeg", "tiff", "tif"], key="pred_img")
-    gt_file = st.file_uploader("Upload Ground Truth Image", type=["png", "jpg", "jpeg", "tiff", "tif"], key="gt_img")
-    
-    if pred_file is not None and gt_file is not None:
-        # Open images using PIL
-        pred_image = Image.open(pred_file)
-        gt_image = Image.open(gt_file)
-        
-        st.markdown("### Preview Uploaded Images")
+    st.write(
+        "Upload the predicted mask image and the original aerial image (RGB)."
+    )
+
+    pred_file = st.file_uploader(
+        "Upload Predicted Mask Image",
+        type=["png", "jpg", "jpeg", "tiff"],
+        key="pred_mask"
+    )
+    orig_file = st.file_uploader(
+        "Upload Original Image",
+        type=["png", "jpg", "jpeg", "tiff"],
+        key="orig_img"
+    )
+
+    if pred_file and orig_file:
+        # Load images
+        pred_mask = Image.open(pred_file)
+        orig_image = Image.open(orig_file).convert('RGB')
+
+        # Preview images
+        st.markdown("### Preview Images")
         col1, col2 = st.columns(2)
         with col1:
-            st.image(pred_image, caption="Predicted Image", use_container_width=True)
+            st.image(orig_image, caption="Original Image", use_container_width=True)
         with col2:
-            st.image(gt_image, caption="Ground Truth Image", use_container_width=True)
-        
-        # Process each image for building detection
-        st.markdown("---")
-        st.markdown("### Processed Bounding Box Images & Counts")
-        pred_count, pred_buildings, pred_overlay = process_building_image(pred_image, meter_per_pixel)
-        gt_count, gt_buildings, gt_overlay = process_building_image(gt_image, meter_per_pixel)
-        
-        st.subheader("Predicted Image - Building Detection")
-        st.image(pred_overlay, caption="Predicted Image with Bounding Boxes", use_container_width=True)
-        st.write(f"**Number of Buildings Detected (Predicted):** {pred_count}")
-        
-        st.subheader("Ground Truth Image - Building Detection")
-        st.image(gt_overlay, caption="Ground Truth Image with Bounding Boxes", use_container_width=True)
-        st.write(f"**Number of Buildings Detected (Ground Truth):** {gt_count}")
-        
-        # Create and display tables for each
-        st.markdown("---")
-        st.markdown("### Building Details (Predicted)")
-        if pred_buildings:
-            pred_df = pd.DataFrame(pred_buildings)
-            st.dataframe(pred_df)
-        else:
-            st.write("No buildings detected in the predicted image.")
-            
-        st.markdown("### Building Details (Ground Truth)")
-        if gt_buildings:
-            gt_df = pd.DataFrame(gt_buildings)
-            st.dataframe(gt_df)
-        else:
-            st.write("No buildings detected in the ground truth image.")
+            st.image(pred_mask, caption="Predicted Mask Image", use_container_width=True)
 
+        st.markdown("---")
+        # Detect buildings in mask
+        building_info, bboxes, mask_thresh = detect_buildings(pred_mask, meter_per_pixel)
+
+        # Prepare overlay: convert original to BGR for OpenCV
+        orig_bgr = cv2.cvtColor(np.array(orig_image), cv2.COLOR_RGB2BGR)
+        # Create color mask (red) where mask is present
+        mask_color = np.zeros_like(orig_bgr)
+        mask_color[mask_thresh == 255] = [0, 0, 255]
+        # Blend original and mask
+        overlay = cv2.addWeighted(orig_bgr, 0.7, mask_color, 0.3, 0)
+
+        # Draw bounding boxes and labels
+        for info, (x, y, w, h) in zip(building_info, bboxes):
+            cv2.rectangle(overlay, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.putText(
+                overlay,
+                str(info["Building Number"]),
+                (x + 5, y + 20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 255),
+                2
+            )
+
+        # Convert back to RGB for Streamlit
+        overlay_rgb = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
+
+        # Display overlay
+        st.subheader("Original Image with Mask Overlay and Bounding Boxes")
+        st.image(overlay_rgb, use_container_width=True)
+        st.write(f"**Number of Buildings Detected:** {len(building_info)}")
+
+        st.markdown("---")
+        # Show details and allow selection
+        if building_info:
+            df = pd.DataFrame(building_info)
+            st.dataframe(df)
+            selected = st.selectbox(
+                "Select Building",
+                [b["Building Number"] for b in building_info],
+                key="building_select"
+            )
+            sel_idx = selected - 1
+            sel_info = building_info[sel_idx]
+            sel_bbox = bboxes[sel_idx]
+            x, y, w, h = sel_bbox
+
+            # Show selected building info
+            st.write(
+                f"📌 **Building {selected}** - Area: {sel_info['Area (sq ft)']} sq ft"
+            )
+
+            # Clip the region from the original image
+            orig_rgb = np.array(orig_image)
+            clip = orig_rgb[y:y+h, x:x+w]
+            st.image(
+                clip,
+                caption=f"Clipped Original Image - Building {selected}",
+                use_container_width=True
+            )
+        else:
+            st.write("No buildings detected in the predicted mask.")

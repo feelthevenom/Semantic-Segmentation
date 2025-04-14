@@ -11,6 +11,8 @@ ollama
 duckdb
 python-docx
 Pillow
+plotly
+streamlit-plotly-events
 # -e .
 
 # mamba-ssm

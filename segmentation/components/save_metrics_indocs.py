@@ -1,11 +1,9 @@
+# save_metrics_indocs.py
+
 import streamlit as st
 import os
 import json
-import pandas as pd
 from docx import Document
-from docx.shared import Inches
-
-# Import necessary constants and configurations from your app modules
 from segmentation.constant.config import TRAIN_METRIC_DIRR, TEST_METRIC_DIRR
 from segmentation.entity.config_entity import ArtifactConfig
 
@@ -13,145 +11,173 @@ from segmentation.entity.config_entity import ArtifactConfig
 artifact_config = ArtifactConfig()
 model_base_path = artifact_config.trained_models_dirr
 
-# Helper function to format float values to 4 decimal places
 def format_val(val):
+    """Format numeric values to 4 decimal places, else str."""
     if isinstance(val, (float, int)):
         return f"{val:.4f}"
     return str(val)
 
-# Function to read a JSON file and return the data
 def read_json_file(filepath):
+    """Read JSON, return dict/list or None on error."""
     try:
         with open(filepath, "r") as f:
-            data = json.load(f)
-        return data
+            return json.load(f)
     except Exception as e:
         st.error(f"Error reading {filepath}: {e}")
         return None
 
-# Function to process training metrics: identifies the best epoch (using validation accuracy)
-# and sums the total training time.
 def process_train_metrics(train_data):
+    """
+    From a list of epoch records, pick the one with highest valid_metrics['iou_score'].
+    Also sum total_time across all epochs.
+    Returns: best_epoch, best_record, total_time
+    """
     best_epoch = None
-    best_val_acc = -1
-    total_time = 0
+    best_val_iou = -1.0
+    best_record = None
+    total_time = 0.0
+
     for record in train_data:
         epoch = record.get("epoch")
-        valid_metrics = record.get("valid_metrics", {})
-        valid_acc = valid_metrics.get("accuracy", 0)
-        if valid_acc > best_val_acc:
-            best_val_acc = valid_acc
+        valid = record.get("valid_metrics", {})
+        val_iou = valid.get("iou_score", 0.0)
+        if val_iou > best_val_iou:
+            best_val_iou = val_iou
             best_epoch = epoch
-        train_metrics = record.get("train_metrics", {})
-        total_time += train_metrics.get("total_time", 0)
-    return best_epoch, total_time
+            best_record = record
 
-# Function to create a complete docx report for all datasets and models.
+        train = record.get("train_metrics", {})
+        total_time += train.get("total_time", 0.0)
+
+    return best_epoch, best_record, total_time
+
 def create_doc_table_all(model_base_path):
+    """Loop over datasets/models, write a .docx report with best-epoch metrics."""
     document = Document()
     document.add_heading("Model Metrics Report", level=1)
 
-    # List dataset directories in model_base_path
-    dataset_dirs = [d for d in os.listdir(model_base_path) if os.path.isdir(os.path.join(model_base_path, d))]
+    # find all dataset dirs
+    dataset_dirs = [
+        d for d in os.listdir(model_base_path)
+        if os.path.isdir(os.path.join(model_base_path, d))
+    ]
     if not dataset_dirs:
         document.add_paragraph("No datasets found in the model base path.")
-        output_path = "metrics_report_all.docx"
-        document.save(output_path)
-        return output_path
+        out = "metrics_report_all.docx"
+        document.save(out)
+        return out
 
     for dataset in dataset_dirs:
         document.add_heading(f"Dataset: {dataset}", level=2)
         dataset_path = os.path.join(model_base_path, dataset)
-        model_dirs = [m for m in os.listdir(dataset_path) if os.path.isdir(os.path.join(dataset_path, m))]
+        model_dirs = [
+            m for m in os.listdir(dataset_path)
+            if os.path.isdir(os.path.join(dataset_path, m))
+        ]
         if not model_dirs:
             document.add_paragraph("No models found for this dataset.")
             continue
 
         for model in model_dirs:
             document.add_heading(f"Model: {model}", level=3)
-            # Define paths for train and test metrics JSON files
-            train_metrics_path = os.path.join(model_base_path, dataset, model, TRAIN_METRIC_DIRR)
-            test_metrics_path = os.path.join(model_base_path, dataset, model, TEST_METRIC_DIRR)
 
-            # Read JSON data for training and testing metrics
-            train_data = read_json_file(train_metrics_path)
-            test_data = read_json_file(test_metrics_path)
+            # paths to JSON metric files
+            train_path = os.path.join(dataset_path, model, TRAIN_METRIC_DIRR)
+            test_path  = os.path.join(dataset_path, model, TEST_METRIC_DIRR)
 
-            # --- Training & Validation Metrics ---
-            if train_data is not None:
-                document.add_paragraph("Training and Validation Metrics:")
-                table = document.add_table(rows=1, cols=8)
-                hdr_cells = table.rows[0].cells
-                hdr_cells[0].text = "Epoch"
-                hdr_cells[1].text = "Train Dice Loss"
-                hdr_cells[2].text = "Train IoU"
-                hdr_cells[3].text = "Train Accuracy"
-                hdr_cells[4].text = "Valid Dice Loss"
-                hdr_cells[5].text = "Valid Accuracy"
-                hdr_cells[6].text = "Valid Precision"
-                hdr_cells[7].text = "Valid Recall"
-                for record in train_data:
-                    row_cells = table.add_row().cells
-                    row_cells[0].text = format_val(record.get("epoch", "N/A"))
-                    train_metrics = record.get("train_metrics", {})
-                    valid_metrics = record.get("valid_metrics", {})
-                    row_cells[1].text = format_val(train_metrics.get("dice_loss", "N/A"))
-                    row_cells[2].text = format_val(train_metrics.get("iou_score", "N/A"))
-                    row_cells[3].text = format_val(train_metrics.get("accuracy", "N/A"))
-                    row_cells[4].text = format_val(valid_metrics.get("dice_loss", "N/A"))
-                    row_cells[5].text = format_val(valid_metrics.get("accuracy", "N/A"))
-                    row_cells[6].text = format_val(valid_metrics.get("precision", "N/A"))
-                    row_cells[7].text = format_val(valid_metrics.get("recall", "N/A"))
-                best_epoch, total_time = process_train_metrics(train_data)
-                document.add_paragraph(f"Best Epoch (based on validation accuracy): {format_val(best_epoch)}")
+            train_data = read_json_file(train_path)
+            test_data  = read_json_file(test_path)
+
+            # --- Train & Validation (Best Epoch) ---
+            if train_data:
+                best_epoch, best_record, total_time = process_train_metrics(train_data)
+                document.add_paragraph(
+                    "Training & Validation Metrics for Best Epoch (by validation IoU):"
+                )
+                table = document.add_table(rows=1, cols=13)
+                hdr = table.rows[0].cells
+                hdr[0].text  = "Epoch"
+                hdr[1].text  = "Train Dice Loss"
+                hdr[2].text  = "Train IoU"
+                hdr[3].text  = "Train Accuracy"
+                hdr[4].text  = "Train Precision"
+                hdr[5].text  = "Train Recall"
+                hdr[6].text  = "Train Fscore"
+                hdr[7].text  = "Valid Dice Loss"
+                hdr[8].text  = "Valid IoU"
+                hdr[9].text  = "Valid Accuracy"
+                hdr[10].text = "Valid Precision"
+                hdr[11].text = "Valid Recall"
+                hdr[12].text = "Valid Fscore"
+
+                # fill row
+                train_m = best_record.get("train_metrics", {})
+                valid_m = best_record.get("valid_metrics", {})
+                row = table.add_row().cells
+                row[0].text  = format_val(best_epoch)
+                row[1].text  = format_val(train_m.get("dice_loss", "N/A"))
+                row[2].text  = format_val(train_m.get("iou_score", "N/A"))
+                row[3].text  = format_val(train_m.get("accuracy", "N/A"))
+                row[4].text  = format_val(train_m.get("precision", "N/A"))
+                row[5].text  = format_val(train_m.get("recall", "N/A"))
+                row[6].text  = format_val(train_m.get("fscore", "N/A"))
+                row[7].text  = format_val(valid_m.get("dice_loss", "N/A"))
+                row[8].text  = format_val(valid_m.get("iou_score", "N/A"))
+                row[9].text  = format_val(valid_m.get("accuracy", "N/A"))
+                row[10].text = format_val(valid_m.get("precision", "N/A"))
+                row[11].text = format_val(valid_m.get("recall", "N/A"))
+                row[12].text = format_val(valid_m.get("fscore", "N/A"))
+
+                document.add_paragraph(f"Best Epoch: {best_epoch}")
                 document.add_paragraph(f"Total Training Time: {format_val(total_time)} seconds")
             else:
                 document.add_paragraph("No training metrics found.")
 
-            # --- Testing Metrics ---
-            if test_data is not None:
+            # --- Test Metrics ---
+            if test_data:
                 document.add_paragraph("Test Metrics:")
-                test_table = document.add_table(rows=1, cols=6)
-                test_hdr_cells = test_table.rows[0].cells
-                test_hdr_cells[0].text = "Dice Loss"
-                test_hdr_cells[1].text = "IoU Score"
-                test_hdr_cells[2].text = "Accuracy"
-                test_hdr_cells[3].text = "Precision"
-                test_hdr_cells[4].text = "Recall"
-                test_hdr_cells[5].text = "Fscore"
-                if isinstance(test_data, list) and len(test_data) > 0:
-                    test_metrics = test_data[0].get("test_metrics", {})
-                    row_cells = test_table.add_row().cells
-                    row_cells[0].text = format_val(test_metrics.get("dice_loss", "N/A"))
-                    row_cells[1].text = format_val(test_metrics.get("iou_score", "N/A"))
-                    row_cells[2].text = format_val(test_metrics.get("accuracy", "N/A"))
-                    row_cells[3].text = format_val(test_metrics.get("precision", "N/A"))
-                    row_cells[4].text = format_val(test_metrics.get("recall", "N/A"))
-                    row_cells[5].text = format_val(test_metrics.get("fscore", "N/A"))
+                ttable = document.add_table(rows=1, cols=6)
+                th = ttable.rows[0].cells
+                th[0].text = "Dice Loss"
+                th[1].text = "IoU Score"
+                th[2].text = "Accuracy"
+                th[3].text = "Precision"
+                th[4].text = "Recall"
+                th[5].text = "Fscore"
+
+                if isinstance(test_data, list) and test_data:
+                    tm = test_data[0].get("test_metrics", {})
+                    r = ttable.add_row().cells
+                    r[0].text = format_val(tm.get("dice_loss", "N/A"))
+                    r[1].text = format_val(tm.get("iou_score", "N/A"))
+                    r[2].text = format_val(tm.get("accuracy", "N/A"))
+                    r[3].text = format_val(tm.get("precision", "N/A"))
+                    r[4].text = format_val(tm.get("recall", "N/A"))
+                    r[5].text = format_val(tm.get("fscore", "N/A"))
                 else:
                     document.add_paragraph("Test metrics data is empty.")
             else:
                 document.add_paragraph("No test metrics found.")
 
-            # Add a divider between models
             document.add_paragraph("-----------------------------")
-        # Divider between datasets
         document.add_paragraph("====================================")
-    
+
     output_path = "metrics_report_all.docx"
     document.save(output_path)
     return output_path
 
-# New Tab for creating the doc table across datasets and models
 def create_doc_table_tab():
+    """Streamlit UI: button to trigger the report creation."""
     st.header("Create Doc Table")
-    st.write("Click the Start button to generate the complete metrics report document from all dataset and model JSON metrics files.")
+    st.write("Click the Start button to generate the metrics report.")
 
     if st.button("Start"):
-        # Create the document by looping over all datasets and models
         output_docx = create_doc_table_all(model_base_path)
         st.success(f"Metrics report created: {output_docx}")
-
-        # Provide a download button for the generated docx file
         with open(output_docx, "rb") as file:
-            st.download_button("Download Report", data=file, file_name=output_docx, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            st.download_button(
+                "Download Report",
+                data=file,
+                file_name=output_docx,
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
